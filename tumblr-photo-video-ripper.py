@@ -26,6 +26,9 @@ MEDIA_NUM = 50
 # Numbers of downloading threads concurrently
 THREADS = 10
 
+# Proxy
+PROXY = {'http': "socks5://127.0.0.1:1080"}
+
 
 class DownloadWorker(Thread):
     def __init__(self, queue):
@@ -77,14 +80,25 @@ class DownloadWorker(Thread):
 
             medium_name += ".mp4"
 
-        file_path = os.path.join(target_folder, medium_name)
+        file_folder = target_folder
+        if medium_type == "video":
+            file_folder = os.path.join(target_folder, "video")
+        if medium_type == "photo":
+            file_folder = os.path.join(target_folder, "photo")
+        if not os.path.isdir(file_folder):
+            os.mkdir(file_folder)
+
+        file_path = os.path.join(file_folder, medium_name)
         if not os.path.isfile(file_path):
             print("Downloading %s from %s.\n" % (medium_name,
                                                  medium_url))
             retry_times = 0
             while retry_times < RETRY:
                 try:
-                    urllib.urlretrieve(medium_url, filename=file_path)
+                    r = requests.get(medium_url, stream=True, proxies=PROXY, timeout=10)
+                    with open(file_path, 'wb') as f:
+                        for chunk in r.iter_content(chunk_size=1024):
+                            f.write(chunk)
                     break
                 except:
                     # try again
@@ -146,7 +160,7 @@ class CrawlerScheduler(object):
         start = START
         while True:
             media_url = base_url.format(site, medium_type, MEDIA_NUM, start)
-            response = requests.get(media_url)
+            response = requests.get(media_url,proxies=PROXY)
             data = xmltodict.parse(response.content)
             try:
                 posts = data["tumblr"]["posts"]["post"]
